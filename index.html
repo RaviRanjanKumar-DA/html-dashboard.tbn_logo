@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Analytics Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f0f2f8;
+    --surface: #ffffff;
+    --surface2: #f8f9fc;
+    --border: #e2e8f0;
+    --text: #1a202c;
+    --text-muted: #718096;
+    --text-light: #a0aec0;
+    --primary: #4f46e5;
+    --primary-light: #ede9fe;
+    --green: #10b981;
+    --green-light: #d1fae5;
+    --red: #ef4444;
+    --red-light: #fee2e2;
+    --yellow: #f59e0b;
+    --yellow-light: #fef3c7;
+    --blue: #3b82f6;
+    --blue-light: #dbeafe;
+    --purple: #8b5cf6;
+    --purple-light: #ede9fe;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.04);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,.10);
+    --radius: 14px;
+    --radius-sm: 8px;
+  }
+  [data-theme="dark"] {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #222535;
+    --border: #2d3147;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --text-light: #64748b;
+    --shadow: 0 1px 3px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.2);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    transition: background .3s, color .3s;
+  }
+
+  /* TOP NAV */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 28px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow);
+  }
+  .topbar-left { display: flex; align-items: center; gap: 14px; }
+  .logo-icon {
+    width: 38px; height: 38px;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 800; font-size: 16px;
+  }
+  .topbar h1 { font-size: 18px; font-weight: 700; color: var(--text); }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .last-updated { font-size: 12px; color: var(--text-muted); }
+  .refresh-btn, .dark-btn, .pdf-btn, .print-btn {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: var(--radius-sm);
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .2s;
+    font-family: 'Inter', sans-serif;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .refresh-btn:hover, .dark-btn:hover, .pdf-btn:hover, .print-btn:hover {
+    background: var(--primary); color: white; border-color: var(--primary);
+  }
+  .spin { display: inline-block; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* MAIN LAYOUT */
+  .main { max-width: 1600px; margin: 0 auto; padding: 24px 28px; }
+
+  /* FILTER CARD */
+  .filter-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    box-shadow: var(--shadow);
+    margin-bottom: 24px;
+    border: 1px solid var(--border);
+    position: sticky;
+    top: 64px;
+    z-index: 50;
+  }
+  .filter-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .filter-header h2 { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .filter-grid {
+    display: grid;
+    grid-template-columns: 2fr repeat(4, 1fr) auto;
+    gap: 12px;
+    align-items: end;
+  }
+  .filter-group { display: flex; flex-direction: column; gap: 5px; }
+  .filter-group label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+  .filter-group select, .filter-group input {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 9px 12px;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    background: var(--surface2);
+    color: var(--text);
+    outline: none;
+    transition: border .2s;
+    width: 100%;
+  }
+  .filter-group select:focus, .filter-group input:focus { border-color: var(--primary); }
+  .date-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .reset-btn {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: white; border: none;
+    border-radius: var(--radius-sm);
+    padding: 9px 20px;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: opacity .2s;
+    white-space: nowrap;
+  }
+  .reset-btn:hover { opacity: .9; }
+
+  /* LOADING */
+  .loading-overlay {
+    position: fixed; inset: 0;
+    background: rgba(15,17,23,.85);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 9999;
+    gap: 20px;
+  }
+  .loading-spinner {
+    width: 52px; height: 52px;
+    border: 4px solid rgba(255,255,255,.1);
+    border-top-color: #4f46e5;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  .loading-text { color: white; font-size: 15px; font-weight: 500; }
+
+  /* KPI GRID */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: transform .2s, box-shadow .2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .kpi-card.blue::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+  .kpi-card.green::before { background: linear-gradient(90deg, #10b981, #34d399); }
+  .kpi-card.red::before { background: linear-gradient(90deg, #ef4444, #f87171); }
+  .kpi-card.purple::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+  .kpi-card.yellow::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+  .kpi-card.indigo::before { background: linear-gradient(90deg, #4f46e5, #818cf8); }
+  .kpi-card.pink::before { background: linear-gradient(90deg, #ec4899, #f472b6); }
+  .kpi-card.teal::before { background: linear-gradient(90deg, #14b8a6, #2dd4bf); }
+  .kpi-card.orange::before { background: linear-gradient(90deg, #f97316, #fb923c); }
+  .kpi-card.cyan::before { background: linear-gradient(90deg, #06b6d4, #22d3ee); }
+  .kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+  .kpi-top { display: flex; align-items: flex-start; justify-content: space-between; }
+  .kpi-label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+  .kpi-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .kpi-card.blue .kpi-icon { background: var(--blue-light); }
+  .kpi-card.green .kpi-icon { background: var(--green-light); }
+  .kpi-card.red .kpi-icon { background: var(--red-light); }
+  .kpi-card.purple .kpi-icon { background: var(--purple-light); }
+  .kpi-card.yellow .kpi-icon { background: var(--yellow-light); }
+  .kpi-card.indigo .kpi-icon { background: #e0e7ff; }
+  .kpi-card.pink .kpi-icon { background: #fce7f3; }
+  .kpi-card.teal .kpi-icon { background: #ccfbf1; }
+  .kpi-card.orange .kpi-icon { background: #ffedd5; }
+  .kpi-card.cyan .kpi-icon { background: #cffafe; }
+  .kpi-value { font-size: 32px; font-weight: 800; line-height: 1; color: var(--text); }
+  .kpi-sub { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+  .kpi-progress { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .kpi-progress-bar { height: 100%; border-radius: 2px; transition: width .6s ease; }
+  .kpi-card.blue .kpi-progress-bar { background: var(--blue); }
+  .kpi-card.green .kpi-progress-bar { background: var(--green); }
+  .kpi-card.red .kpi-progress-bar { background: var(--red); }
+  .kpi-card.purple .kpi-progress-bar { background: var(--purple); }
+  .kpi-card.yellow .kpi-progress-bar { background: var(--yellow); }
+  .kpi-card.indigo .kpi-progress-bar { background: var(--primary); }
+  .kpi-card.pink .kpi-progress-bar { background: #ec4899; }
+  .kpi-card.teal .kpi-progress-bar { background: #14b8a6; }
+  .kpi-card.orange .kpi-progress-bar { background: #f97316; }
+  .kpi-card.cyan .kpi-progress-bar { background: #06b6d4; }
+
+  /* SECTION TITLES */
+  .section-title {
+    font-size: 16px; font-weight: 700;
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+    color: var(--text);
+  }
+  .section-title span { font-size: 18px; }
+
+  /* CHART GRID */
+  .chart-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  .chart-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  .chart-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 22px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+  }
+  .chart-card h3 { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .chart-card canvas { max-height: 280px; }
+  .chart-card.tall canvas { max-height: 340px; }
+  .chart-card.full { grid-column: 1 / -1; }
+
+  /* HOLDER PERFORMANCE TABLE */
+  .holder-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .holder-item {
+    background: var(--surface2);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    border: 1px solid var(--border);
+  }
+  .holder-name { font-weight: 600; font-size: 13px; margin-bottom: 8px; color: var(--text); }
+  .holder-stats { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+  .progress-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 3px; transition: width .6s; }
+
+  /* INSIGHTS */
+  .insights-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .insight-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+  }
+  .insight-card h3 { font-size: 13px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: var(--text); }
+  .insight-list { display: flex; flex-direction: column; gap: 8px; }
+  .insight-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    font-size: 12px; color: var(--text-muted);
+    padding: 8px; background: var(--surface2);
+    border-radius: var(--radius-sm); border: 1px solid var(--border);
+  }
+  .insight-item .badge { flex-shrink: 0; margin-top: 1px; }
+
+  /* BADGES */
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 3px 9px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge.green { background: var(--green-light); color: #065f46; }
+  .badge.red { background: var(--red-light); color: #991b1b; }
+  .badge.yellow { background: var(--yellow-light); color: #92400e; }
+  .badge.blue { background: var(--blue-light); color: #1e40af; }
+  .badge.purple { background: var(--purple-light); color: #5b21b6; }
+  .badge.gray { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+
+  /* TABLE SECTION */
+  .table-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 22px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .table-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px; flex-wrap: wrap; gap: 10px;
+  }
+  .table-toolbar-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .table-search {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 14px 8px 36px;
+    font-size: 13px; font-family: 'Inter', sans-serif;
+    background: var(--surface2); color: var(--text);
+    outline: none; width: 240px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23718096' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 12px center;
+  }
+  .export-btn {
+    background: var(--green); color: white; border: none;
+    border-radius: var(--radius-sm); padding: 8px 16px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    display: flex; align-items: center; gap: 6px;
+    transition: opacity .2s;
+  }
+  .export-btn:hover { opacity: .9; }
+  .per-page-select {
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 8px 12px; font-size: 13px; font-family: 'Inter', sans-serif;
+    background: var(--surface2); color: var(--text); outline: none;
+  }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { position: sticky; top: 0; z-index: 10; }
+  th {
+    background: var(--surface2);
+    padding: 11px 14px;
+    text-align: left;
+    font-size: 11px; font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: .5px;
+    border-bottom: 2px solid var(--border);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+  }
+  th:hover { color: var(--primary); }
+  th .sort-icon { margin-left: 4px; opacity: .4; }
+  th.sort-asc .sort-icon, th.sort-desc .sort-icon { opacity: 1; color: var(--primary); }
+  td {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text);
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  tr.overdue td { background: #fff5f5 !important; }
+  [data-theme="dark"] tr.overdue td { background: #2d1515 !important; }
+  .pagination {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 16px; flex-wrap: wrap; gap: 10px;
+  }
+  .pagination-info { font-size: 12px; color: var(--text-muted); }
+  .pagination-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pg-btn {
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text); border-radius: var(--radius-sm);
+    padding: 6px 12px; font-size: 13px; cursor: pointer;
+    font-family: 'Inter', sans-serif; transition: all .2s;
+  }
+  .pg-btn:hover, .pg-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+  .pg-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* EMPTY STATE */
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+
+  /* RESPONSIVE */
+  @media (max-width: 1200px) {
+    .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    .filter-grid { grid-template-columns: repeat(3, 1fr); }
+    .chart-grid-3 { grid-template-columns: 1fr 1fr; }
+    .insights-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 768px) {
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .filter-grid { grid-template-columns: 1fr 1fr; }
+    .chart-grid-2, .chart-grid-3 { grid-template-columns: 1fr; }
+    .insights-grid { grid-template-columns: 1fr; }
+    .topbar h1 { font-size: 15px; }
+    .main { padding: 16px; }
+  }
+
+  /* TOOLTIP */
+  .tippy { position: relative; cursor: help; }
+
+  /* ERROR BANNER */
+  .error-banner {
+    background: var(--red-light); color: #991b1b;
+    border: 1px solid #fca5a5; border-radius: var(--radius-sm);
+    padding: 12px 16px; margin-bottom: 16px; font-size: 13px;
+    display: none;
+  }
+
+  /* SECTION DIVIDER */
+  .section-divider { margin: 28px 0 20px; }
+
+  /* TAG */
+  .tag {
+    display: inline-block;
+    padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 600;
+    background: var(--primary-light); color: var(--primary);
+  }
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Loading dashboard data…</div>
+</div>
+
+<!-- TOPBAR -->
+<nav class="topbar">
+  <div class="topbar-left">
+    <div class="logo-icon">PA</div>
+    <div>
+      <h1>Project Analytics Dashboard</h1>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="last-updated" id="lastUpdated">–</span>
+    <button class="refresh-btn" onclick="loadData()">⟳ Refresh</button>
+    <button class="dark-btn" onclick="toggleDark()" id="darkBtn">🌙 Dark</button>
+    <button class="pdf-btn" onclick="exportPDF()">📄 PDF</button>
+    <button class="print-btn" onclick="window.print()">🖨 Print</button>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="error-banner" id="errorBanner"></div>
+
+  <!-- FILTERS -->
+  <div class="filter-card">
+    <div class="filter-header">
+      <h2><span>⚙️</span> Filters & Search</h2>
+      <span class="tag" id="resultCount">–</span>
+    </div>
+    <div class="filter-grid">
+      <div class="filter-group">
+        <label>Search Project</label>
+        <input type="text" id="searchInput" placeholder="Search by project name…">
+      </div>
+      <div class="filter-group">
+        <label>Holder</label>
+        <select id="holderFilter"><option value="">All Holders</option></select>
+      </div>
+      <div class="filter-group">
+        <label>Status</label>
+        <select id="statusFilter"><option value="">All Status</option></select>
+      </div>
+      <div class="filter-group">
+        <label>Task</label>
+        <select id="taskFilter"><option value="">All Tasks</option></select>
+      </div>
+      <div class="filter-group">
+        <label>Final Mail</label>
+        <select id="mailFilter"><option value="">All Mail</option></select>
+      </div>
+      <div class="filter-group">
+        <label>Date Range (Due)</label>
+        <div class="date-row">
+          <input type="date" id="dateFrom" title="From">
+          <input type="date" id="dateTo" title="To">
+        </div>
+      </div>
+      <button class="reset-btn" onclick="resetFilters()">↺ Reset</button>
+    </div>
+  </div>
+
+  <!-- KPI CARDS -->
+  <div class="section-title"><span>📊</span> Key Performance Indicators</div>
+  <div class="kpi-grid" id="kpiGrid">
+    <!-- Populated dynamically -->
+  </div>
+
+  <!-- CHARTS ROW 1 -->
+  <div class="section-title section-divider"><span>📈</span> Status & Task Analysis</div>
+  <div class="chart-grid-3">
+    <div class="chart-card">
+      <h3>🟢 Project Status Distribution</h3>
+      <canvas id="statusChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>📋 Task Type Breakdown</h3>
+      <canvas id="taskChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>📧 Final Mail Status</h3>
+      <canvas id="mailChart"></canvas>
+    </div>
+  </div>
+
+  <!-- CHARTS ROW 2 -->
+  <div class="section-title"><span>👥</span> Holder Performance</div>
+  <div class="chart-grid-2">
+    <div class="chart-card tall">
+      <h3>📊 Projects per Holder</h3>
+      <canvas id="holderBarChart"></canvas>
+    </div>
+    <div class="chart-card tall">
+      <h3>✅ Completion Rate by Holder</h3>
+      <canvas id="holderCompletionChart"></canvas>
+    </div>
+  </div>
+
+  <!-- HOLDER CARDS -->
+  <div class="chart-card" style="margin-bottom:24px;">
+    <h3>🏆 Holder Performance Details</h3>
+    <div class="holder-grid" id="holderGrid"></div>
+  </div>
+
+  <!-- CHARTS ROW 3 -->
+  <div class="section-title"><span>📅</span> Timeline & SLA Analysis</div>
+  <div class="chart-grid-2">
+    <div class="chart-card tall">
+      <h3>📆 Monthly Completed Projects</h3>
+      <canvas id="monthlyChart"></canvas>
+    </div>
+    <div class="chart-card tall">
+      <h3>⏱ SLA – On Time vs Late</h3>
+      <canvas id="slaChart"></canvas>
+    </div>
+  </div>
+
+  <!-- WORKLOAD & PRODUCTIVITY -->
+  <div class="chart-grid-3" style="margin-bottom:24px;">
+    <div class="chart-card">
+      <h3>⚖️ Workload Distribution</h3>
+      <canvas id="workloadChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>📈 Monthly Growth Trend</h3>
+      <canvas id="growthChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>🗓 Due vs Completed Dates</h3>
+      <canvas id="dueVsCompChart"></canvas>
+    </div>
+  </div>
+
+  <!-- INSIGHTS -->
+  <div class="section-title"><span>💡</span> Insights & Recommendations</div>
+  <div class="insights-grid" id="insightsGrid"></div>
+
+  <!-- DATA TABLE -->
+  <div class="section-title section-divider"><span>📋</span> Projects Data Table</div>
+  <div class="table-card">
+    <div class="table-toolbar">
+      <div class="table-toolbar-left">
+        <input type="text" class="table-search" id="tableSearch" placeholder="Search in table…">
+        <select class="per-page-select" id="perPage" onchange="renderTable()">
+          <option value="10">10 / page</option>
+          <option value="25" selected>25 / page</option>
+          <option value="50">50 / page</option>
+          <option value="100">100 / page</option>
+        </select>
+      </div>
+      <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+    </div>
+    <div class="table-wrap">
+      <table id="dataTable">
+        <thead>
+          <tr>
+            <th onclick="sortTable('Task')" id="th-Task">Task <span class="sort-icon">↕</span></th>
+            <th onclick="sortTable('Status')" id="th-Status">Status <span class="sort-icon">↕</span></th>
+            <th onclick="sortTable('Projects')" id="th-Projects">Projects <span class="sort-icon">↕</span></th>
+            <th onclick="sortTable('Final Mail')" id="th-FinalMail">Final Mail <span class="sort-icon">↕</span></th>
+            <th onclick="sortTable('Due date')" id="th-Duedate">Due Date <span class="sort-icon">↕</span></th>
+            <th onclick="sortTable('Final Date')" id="th-FinalDate">Final Date <span class="sort-icon">↕</span></th>
+            <th onclick="sortTable('Holder')" id="th-Holder">Holder <span class="sort-icon">↕</span></th>
+            <th>SLA</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <div class="pagination-info" id="paginationInfo"></div>
+      <div class="pagination-btns" id="paginationBtns"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ─────────────────────────────────────────────────────────────────
+const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSLi5GEMHB0KnsT4TiykhxMZLwJ0DWYkQa-QkB5kIqtpfqJ1FbhEw5g8hTvkTUR-QL6DHh6QBVRjndD/pub?gid=0&single=true&output=csv';
+const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 min
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let allData = [], filteredData = [], charts = {};
+let sortCol = '', sortDir = 'asc', currentPage = 1;
+let tableSearchText = '', tableSortCol = '', tableSortDir = 'asc';
+
+// ─── CSV PARSER ──────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = parseCSVLine(lines[0]);
+  return lines.slice(1).map(line => {
+    const vals = parseCSVLine(line);
+    const obj = {};
+    headers.forEach((h, i) => { obj[h.trim()] = (vals[i] || '').trim(); });
+    return obj;
+  }).filter(r => Object.values(r).some(v => v));
+}
+
+function parseCSVLine(line) {
+  const result = []; let cur = ''; let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { if (inQ && line[i+1] === '"') { cur += '"'; i++; } else { inQ = !inQ; } }
+    else if (c === ',' && !inQ) { result.push(cur); cur = ''; }
+    else cur += c;
+  }
+  result.push(cur);
+  return result;
+}
+
+// ─── DATE HELPERS ────────────────────────────────────────────────────────────
+function parseDate(str) {
+  if (!str) return null;
+  // Try multiple formats
+  let d = new Date(str);
+  if (!isNaN(d)) return d;
+  // DD/MM/YYYY
+  const m1 = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m1) return new Date(m1[3], m1[2]-1, m1[1]);
+  // DD-MM-YYYY
+  const m2 = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (m2) return new Date(m2[3], m2[2]-1, m2[1]);
+  return null;
+}
+
+function fmtDate(d) {
+  if (!d) return '–';
+  return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+}
+
+function daysDiff(a, b) {
+  if (!a || !b) return null;
+  return Math.round((b - a) / 86400000);
+}
+
+// ─── LOAD DATA ───────────────────────────────────────────────────────────────
+async function loadData() {
+  document.getElementById('loadingOverlay').style.display = 'flex';
+  document.getElementById('errorBanner').style.display = 'none';
+  try {
+    const resp = await fetch(SHEET_CSV + '&t=' + Date.now());
+    const text = await resp.text();
+    if (text.includes('<!DOCTYPE') || text.includes('<html')) throw new Error('Sheet returned HTML – check publish settings');
+    allData = parseCSV(text);
+    if (!allData.length) throw new Error('No data rows found in sheet');
+    populateFilters();
+    applyFilters();
+    document.getElementById('lastUpdated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    const eb = document.getElementById('errorBanner');
+    eb.style.display = 'block';
+    eb.textContent = '⚠ ' + e.message + ' — Showing sample data instead.';
+    allData = generateSampleData();
+    populateFilters();
+    applyFilters();
+    document.getElementById('lastUpdated').textContent = 'Updated: ' + new Date().toLocaleTimeString() + ' (sample)';
+  } finally {
+    document.getElementById('loadingOverlay').style.display = 'none';
+  }
+}
+
+// ─── SAMPLE DATA (fallback) ──────────────────────────────────────────────────
+function generateSampleData() {
+  const holders = ['Alice','Bob','Carol','David','Eva'];
+  const tasks = ['Logo','Full Project'];
+  const statuses = ['Completed','Pending','In Progress','On Hold'];
+  const mails = ['Sent','Not Sent'];
+  const projects = ['Apex Branding','Nova Corp','Stellar Design','Prime Media','Echo Studios','Blaze Creative','Orbit Agency','Fusion Works','Pixel Co','Vortex Ltd','Metro Brand','Summit Studio','Crest Design','Bloom Agency','Zenith Works'];
+  const rows = [];
+  const now = new Date();
+  for (let i = 0; i < 80; i++) {
+    const due = new Date(now.getFullYear(), now.getMonth() - Math.floor(Math.random()*6), Math.floor(Math.random()*28)+1);
+    const done = Math.random()>.3 ? new Date(due.getTime() + (Math.random()-.4)*10*86400000) : null;
+    rows.push({
+      Task: tasks[Math.floor(Math.random()*tasks.length)],
+      Status: statuses[Math.floor(Math.random()*statuses.length)],
+      Projects: projects[Math.floor(Math.random()*projects.length)],
+      'Final Mail': mails[Math.floor(Math.random()*mails.length)],
+      'Due date': due.toLocaleDateString('en-GB'),
+      'Final Date': done ? done.toLocaleDateString('en-GB') : '',
+      Holder: holders[Math.floor(Math.random()*holders.length)]
+    });
+  }
+  return rows;
+}
+
+// ─── POPULATE FILTERS ────────────────────────────────────────────────────────
+function populateFilters() {
+  const unique = (key) => [...new Set(allData.map(r => r[key]).filter(Boolean))].sort();
+  fillSelect('holderFilter', unique('Holder'));
+  fillSelect('statusFilter', unique('Status'));
+  fillSelect('taskFilter', unique('Task'));
+  fillSelect('mailFilter', unique('Final Mail'));
+}
+function fillSelect(id, opts) {
+  const sel = document.getElementById(id);
+  const cur = sel.value;
+  while (sel.options.length > 1) sel.remove(1);
+  opts.forEach(v => { const o = new Option(v, v); sel.add(o); });
+  if (cur) sel.value = cur;
+}
+
+// ─── FILTERS ─────────────────────────────────────────────────────────────────
+function applyFilters() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const holder = document.getElementById('holderFilter').value;
+  const status = document.getElementById('statusFilter').value;
+  const task = document.getElementById('taskFilter').value;
+  const mail = document.getElementById('mailFilter').value;
+  const dateFrom = document.getElementById('dateFrom').value ? new Date(document.getElementById('dateFrom').value) : null;
+  const dateTo = document.getElementById('dateTo').value ? new Date(document.getElementById('dateTo').value) : null;
+
+  filteredData = allData.filter(r => {
+    if (search && !(r.Projects||'').toLowerCase().includes(search)) return false;
+    if (holder && r.Holder !== holder) return false;
+    if (status && r.Status !== status) return false;
+    if (task && r.Task !== task) return false;
+    if (mail && r['Final Mail'] !== mail) return false;
+    if (dateFrom || dateTo) {
+      const d = parseDate(r['Due date']);
+      if (d) {
+        if (dateFrom && d < dateFrom) return false;
+        if (dateTo && d > dateTo) return false;
+      }
+    }
+    return true;
+  });
+
+  document.getElementById('resultCount').textContent = filteredData.length + ' projects';
+  renderKPIs();
+  renderCharts();
+  renderInsights();
+  currentPage = 1;
+  renderTable();
+}
+
+function resetFilters() {
+  ['holderFilter','statusFilter','taskFilter','mailFilter'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('searchInput').value = '';
+  document.getElementById('dateFrom').value = '';
+  document.getElementById('dateTo').value = '';
+  applyFilters();
+}
+
+['searchInput','holderFilter','statusFilter','taskFilter','mailFilter','dateFrom','dateTo'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', applyFilters);
+});
+document.getElementById('searchInput').addEventListener('input', applyFilters);
+
+// ─── KPI CARDS ───────────────────────────────────────────────────────────────
+function renderKPIs() {
+  const d = filteredData;
+  const now = new Date();
+  const completed = d.filter(r => (r.Status||'').toLowerCase().includes('complet'));
+  const pending = d.filter(r => !(r.Status||'').toLowerCase().includes('complet'));
+  const sentMail = d.filter(r => (r['Final Mail']||'').toLowerCase().includes('sent') && !(r['Final Mail']||'').toLowerCase().includes('not'));
+  const notSentMail = d.filter(r => (r['Final Mail']||'').toLowerCase().includes('not'));
+  const holders = [...new Set(d.map(r => r.Holder).filter(Boolean))];
+  const overdue = d.filter(r => {
+    const due = parseDate(r['Due date']);
+    return due && due < now && !(r.Status||'').toLowerCase().includes('complet');
+  });
+  const thisMonth = completed.filter(r => {
+    const fd = parseDate(r['Final Date']);
+    return fd && fd.getMonth() === now.getMonth() && fd.getFullYear() === now.getFullYear();
+  });
+  const compRate = d.length ? Math.round(completed.length / d.length * 100) : 0;
+
+  // Avg completion time
+  let totalDays = 0, countDays = 0;
+  d.forEach(r => {
+    const due = parseDate(r['Due date']), fin = parseDate(r['Final Date']);
+    if (due && fin) { totalDays += Math.abs(daysDiff(due, fin)); countDays++; }
+  });
+  const avgDays = countDays ? Math.round(totalDays / countDays) : 0;
+
+  const kpis = [
+    { label:'Total Projects', value:d.length, icon:'📁', color:'blue', bar: d.length, max: allData.length },
+    { label:'Completed', value:completed.length, icon:'✅', color:'green', bar: completed.length, max: d.length },
+    { label:'Pending/Active', value:pending.length, icon:'⏳', color:'yellow', bar: pending.length, max: d.length },
+    { label:'Mail Sent', value:sentMail.length, icon:'📤', color:'purple', bar: sentMail.length, max: d.length },
+    { label:'Mail Not Sent', value:notSentMail.length, icon:'📭', color:'red', bar: notSentMail.length, max: d.length },
+    { label:'Total Holders', value:holders.length, icon:'👥', color:'indigo', bar: holders.length, max: 10 },
+    { label:'Overdue', value:overdue.length, icon:'🚨', color:'red', bar: overdue.length, max: d.length },
+    { label:'Completion Rate', value:compRate+'%', icon:'📊', color:'teal', bar: compRate, max: 100 },
+    { label:'Avg Completion (days)', value:avgDays, icon:'⏱', color:'orange', bar: avgDays, max: 30 },
+    { label:'Completed This Month', value:thisMonth.length, icon:'🗓', color:'cyan', bar: thisMonth.length, max: d.length },
+  ];
+
+  document.getElementById('kpiGrid').innerHTML = kpis.map(k => `
+    <div class="kpi-card ${k.color}">
+      <div class="kpi-top">
+        <div class="kpi-label">${k.label}</div>
+        <div class="kpi-icon">${k.icon}</div>
+      </div>
+      <div class="kpi-value">${k.value}</div>
+      <div class="kpi-progress"><div class="kpi-progress-bar" style="width:${k.max?Math.min(100,k.bar/k.max*100):0}%"></div></div>
+    </div>
+  `).join('');
+}
+
+// ─── CHART HELPERS ───────────────────────────────────────────────────────────
+const PALETTE = ['#4f46e5','#10b981','#ef4444','#f59e0b','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#06b6d4','#84cc16','#a855f7'];
+const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
+
+function chartDefaults() {
+  return {
+    color: isDark() ? '#94a3b8' : '#718096',
+    borderColor: isDark() ? '#2d3147' : '#e2e8f0',
+    backgroundColor: isDark() ? '#1a1d27' : '#ffffff'
+  };
+}
+
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function makeChart(id, config) {
+  destroyChart(id);
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  const cd = chartDefaults();
+  if (config.options?.plugins?.legend) config.options.plugins.legend.labels = { color: cd.color, ...config.options.plugins.legend.labels };
+  charts[id] = new Chart(ctx, config);
+}
+
+// ─── CHARTS ──────────────────────────────────────────────────────────────────
+function renderCharts() {
+  const d = filteredData;
+  const cd = chartDefaults();
+
+  // STATUS PIE
+  const statusMap = {};
+  d.forEach(r => { const s = r.Status || 'Unknown'; statusMap[s] = (statusMap[s]||0)+1; });
+  makeChart('statusChart', {
+    type: 'doughnut',
+    data: { labels: Object.keys(statusMap), datasets:[{ data: Object.values(statusMap), backgroundColor: PALETTE, borderWidth:2, borderColor: cd.backgroundColor }] },
+    options: { plugins: { legend:{ position:'bottom' }, tooltip: tooltipConfig() }, cutout:'60%' }
+  });
+
+  // TASK PIE
+  const taskMap = {};
+  d.forEach(r => { const t = r.Task || 'Unknown'; taskMap[t] = (taskMap[t]||0)+1; });
+  makeChart('taskChart', {
+    type: 'pie',
+    data: { labels: Object.keys(taskMap), datasets:[{ data: Object.values(taskMap), backgroundColor: PALETTE.slice(4), borderWidth:2, borderColor: cd.backgroundColor }] },
+    options: { plugins: { legend:{ position:'bottom' }, tooltip: tooltipConfig() } }
+  });
+
+  // MAIL DOUGHNUT
+  const mailMap = {};
+  d.forEach(r => { const m = r['Final Mail'] || 'Unknown'; mailMap[m] = (mailMap[m]||0)+1; });
+  makeChart('mailChart', {
+    type: 'doughnut',
+    data: { labels: Object.keys(mailMap), datasets:[{ data: Object.values(mailMap), backgroundColor: ['#10b981','#ef4444','#f59e0b','#8b5cf6'], borderWidth:2, borderColor: cd.backgroundColor }] },
+    options: { plugins: { legend:{ position:'bottom' }, tooltip: tooltipConfig() }, cutout:'60%' }
+  });
+
+  // HOLDER BAR
+  const holderMap = {};
+  d.forEach(r => { if (r.Holder) holderMap[r.Holder] = (holderMap[r.Holder]||0)+1; });
+  const holderLabels = Object.keys(holderMap).sort((a,b) => holderMap[b]-holderMap[a]);
+  makeChart('holderBarChart', {
+    type: 'bar',
+    data: { labels: holderLabels, datasets:[{ label:'Projects', data: holderLabels.map(h=>holderMap[h]), backgroundColor: PALETTE, borderRadius: 6 }] },
+    options: { plugins:{ legend:{display:false}, tooltip:tooltipConfig() }, scales: scaleConfig(cd), responsive:true }
+  });
+
+  // HOLDER COMPLETION %
+  const holderComp = {};
+  d.forEach(r => {
+    if (!r.Holder) return;
+    if (!holderComp[r.Holder]) holderComp[r.Holder] = {total:0, done:0};
+    holderComp[r.Holder].total++;
+    if ((r.Status||'').toLowerCase().includes('complet')) holderComp[r.Holder].done++;
+  });
+  const hcLabels = Object.keys(holderComp);
+  const hcPct = hcLabels.map(h => holderComp[h].total ? Math.round(holderComp[h].done/holderComp[h].total*100) : 0);
+  makeChart('holderCompletionChart', {
+    type: 'bar',
+    data: { labels: hcLabels, datasets:[{ label:'Completion %', data: hcPct, backgroundColor: hcPct.map(v => v>=70?'#10b981':v>=40?'#f59e0b':'#ef4444'), borderRadius:6 }] },
+    options: { plugins:{ legend:{display:false}, tooltip:tooltipConfig() }, scales: { ...scaleConfig(cd), y:{ ...scaleConfig(cd).y, max:100, ticks:{...scaleConfig(cd).y.ticks, callback:v=>v+'%'} } }, responsive:true }
+  });
+
+  // HOLDER CARDS
+  document.getElementById('holderGrid').innerHTML = hcLabels.map((h,i) => {
+    const pct = hcPct[i]; const total = holderComp[h].total; const done = holderComp[h].done;
+    const color = pct>=70?'#10b981':pct>=40?'#f59e0b':'#ef4444';
+    return `<div class="holder-item">
+      <div class="holder-name">👤 ${h}</div>
+      <div class="holder-stats"><span>${done}/${total} completed</span><span>${pct}%</span></div>
+      <div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
+    </div>`;
+  }).join('') || '<div class="empty-state"><div>No holder data</div></div>';
+
+  // MONTHLY COMPLETED
+  const monthlyMap = {};
+  d.forEach(r => {
+    const fd = parseDate(r['Final Date']);
+    if (fd && (r.Status||'').toLowerCase().includes('complet')) {
+      const key = fd.getFullYear()+'-'+String(fd.getMonth()+1).padStart(2,'0');
+      monthlyMap[key] = (monthlyMap[key]||0)+1;
+    }
+  });
+  const monthKeys = Object.keys(monthlyMap).sort();
+  makeChart('monthlyChart', {
+    type: 'bar',
+    data: { labels: monthKeys.map(k=>{ const [y,m]=k.split('-'); return new Date(y,m-1).toLocaleDateString('en',{month:'short',year:'numeric'}); }), datasets:[{ label:'Completed', data: monthKeys.map(k=>monthlyMap[k]), backgroundColor:'#4f46e5', borderRadius:6 }] },
+    options: { plugins:{legend:{display:false}, tooltip:tooltipConfig()}, scales:scaleConfig(cd), responsive:true }
+  });
+
+  // SLA
+  const now = new Date();
+  let onTime=0, late=0, stillOverdue=0;
+  d.forEach(r => {
+    const due = parseDate(r['Due date']), fin = parseDate(r['Final Date']);
+    const isComp = (r.Status||'').toLowerCase().includes('complet');
+    if (isComp && due && fin) { if (fin <= due) onTime++; else late++; }
+    else if (!isComp && due && due < now) stillOverdue++;
+  });
+  makeChart('slaChart', {
+    type: 'doughnut',
+    data: { labels:['On Time','Completed Late','Still Overdue'], datasets:[{ data:[onTime,late,stillOverdue], backgroundColor:['#10b981','#f59e0b','#ef4444'], borderWidth:2, borderColor:cd.backgroundColor }] },
+    options: { plugins:{ legend:{position:'bottom'}, tooltip:tooltipConfig() }, cutout:'55%' }
+  });
+
+  // WORKLOAD
+  makeChart('workloadChart', {
+    type: 'polarArea',
+    data: { labels: holderLabels, datasets:[{ data: holderLabels.map(h=>holderMap[h]), backgroundColor: PALETTE.map(c=>c+'cc') }] },
+    options: { plugins:{ legend:{position:'bottom', labels:{color:cd.color}}, tooltip:tooltipConfig() }, scales:{ r:{ ticks:{color:cd.color}, grid:{color:cd.borderColor} } } }
+  });
+
+  // GROWTH TREND
+  const growthKeys = monthKeys.slice(-8);
+  const cumulative = []; let sum = 0;
+  growthKeys.forEach(k => { sum += (monthlyMap[k]||0); cumulative.push(sum); });
+  makeChart('growthChart', {
+    type: 'line',
+    data: { labels: growthKeys.map(k=>{ const [y,m]=k.split('-'); return new Date(y,m-1).toLocaleDateString('en',{month:'short'}); }), datasets:[{ label:'Cumulative Completed', data: cumulative, borderColor:'#4f46e5', backgroundColor:'rgba(79,70,229,.1)', tension:.4, fill:true, pointRadius:4, pointHoverRadius:6 }] },
+    options: { plugins:{legend:{display:false}, tooltip:tooltipConfig()}, scales:scaleConfig(cd), responsive:true }
+  });
+
+  // DUE VS COMPLETED (scatter)
+  const scatterData = [];
+  d.forEach(r => {
+    const due = parseDate(r['Due date']), fin = parseDate(r['Final Date']);
+    if (due && fin) scatterData.push({ x: due.getTime(), y: fin.getTime(), label: r.Projects });
+  });
+  makeChart('dueVsCompChart', {
+    type: 'scatter',
+    data: { datasets:[{ label:'Projects', data: scatterData, backgroundColor:'rgba(79,70,229,.6)', pointRadius:5, pointHoverRadius:8 }] },
+    options: {
+      plugins:{ legend:{display:false}, tooltip:{ ...tooltipConfig(), callbacks:{ label: ctx => ctx.raw.label || '' } } },
+      scales: {
+        x:{ type:'linear', ticks:{ color:cd.color, callback:v=>new Date(v).toLocaleDateString('en',{month:'short',year:'2-digit'}) }, grid:{color:cd.borderColor} },
+        y:{ type:'linear', ticks:{ color:cd.color, callback:v=>new Date(v).toLocaleDateString('en',{month:'short',year:'2-digit'}) }, grid:{color:cd.borderColor} }
+      },
+      responsive:true
+    }
+  });
+}
+
+function tooltipConfig() {
+  return { backgroundColor: isDark()?'#222535':'#1a202c', titleColor:'#fff', bodyColor:'#94a3b8', padding:10, cornerRadius:8 };
+}
+
+function scaleConfig(cd) {
+  return {
+    x:{ ticks:{color:cd.color}, grid:{color:cd.borderColor} },
+    y:{ ticks:{color:cd.color}, grid:{color:cd.borderColor} }
+  };
+}
+
+// ─── INSIGHTS ────────────────────────────────────────────────────────────────
+function renderInsights() {
+  const d = filteredData;
+  const now = new Date();
+
+  // Best holder
+  const hStats = {};
+  d.forEach(r => {
+    if (!r.Holder) return;
+    if (!hStats[r.Holder]) hStats[r.Holder] = {t:0,c:0};
+    hStats[r.Holder].t++;
+    if ((r.Status||'').toLowerCase().includes('complet')) hStats[r.Holder].c++;
+  });
+  const bestHolder = Object.entries(hStats).sort((a,b)=>b[1].c/b[1].t - a[1].c/a[1].t)[0];
+  const mostWorkload = Object.entries(hStats).sort((a,b)=>b[1].t - a[1].t)[0];
+  const leastWorkload = Object.entries(hStats).sort((a,b)=>a[1].t - b[1].t)[0];
+
+  // Overdue list
+  const overdueList = d.filter(r => {
+    const due = parseDate(r['Due date']);
+    return due && due < now && !(r.Status||'').toLowerCase().includes('complet');
+  }).slice(0,5);
+
+  // Pending mails
+  const pendingMails = d.filter(r => (r['Final Mail']||'').toLowerCase().includes('not')).slice(0,5);
+
+  // Monthly insight
+  const thisMonthDone = d.filter(r => {
+    const fd = parseDate(r['Final Date']);
+    return fd && fd.getMonth()===now.getMonth() && fd.getFullYear()===now.getFullYear();
+  }).length;
+  const lastMonthDone = d.filter(r => {
+    const fd = parseDate(r['Final Date']);
+    const lm = new Date(now.getFullYear(), now.getMonth()-1, 1);
+    return fd && fd.getMonth()===lm.getMonth() && fd.getFullYear()===lm.getFullYear();
+  }).length;
+  const growthPct = lastMonthDone ? Math.round((thisMonthDone-lastMonthDone)/lastMonthDone*100) : 0;
+
+  // Delay risk
+  const soonDue = d.filter(r => {
+    const due = parseDate(r['Due date']);
+    const diff = due ? daysDiff(now, due) : null;
+    return diff !== null && diff >= 0 && diff <= 7 && !(r.Status||'').toLowerCase().includes('complet');
+  });
+
+  document.getElementById('insightsGrid').innerHTML = `
+    <div class="insight-card">
+      <h3>🏆 Performance Insights</h3>
+      <div class="insight-list">
+        ${bestHolder ? `<div class="insight-item"><span class="badge green">Best</span><span><b>${bestHolder[0]}</b> has highest completion rate: ${bestHolder[1].t?Math.round(bestHolder[1].c/bestHolder[1].t*100):0}%</span></div>` : ''}
+        ${mostWorkload ? `<div class="insight-item"><span class="badge blue">Load</span><span><b>${mostWorkload[0]}</b> carries highest workload: ${mostWorkload[1].t} projects</span></div>` : ''}
+        ${leastWorkload && leastWorkload[0]!==mostWorkload?.[0] ? `<div class="insight-item"><span class="badge gray">Light</span><span><b>${leastWorkload[0]}</b> has lightest workload: ${leastWorkload[1].t} projects</span></div>` : ''}
+        <div class="insight-item"><span class="badge purple">Month</span><span>This month: <b>${thisMonthDone}</b> completed ${growthPct>0?`<b style="color:#10b981">▲${growthPct}%</b>`:growthPct<0?`<b style="color:#ef4444">▼${Math.abs(growthPct)}%</b>`:''} vs last month</span></div>
+      </div>
+    </div>
+    <div class="insight-card">
+      <h3>🚨 Overdue Projects (${overdueList.length})</h3>
+      <div class="insight-list">
+        ${overdueList.length ? overdueList.map(r => {
+          const due = parseDate(r['Due date']);
+          const days = due ? Math.abs(daysDiff(due, now)) : 0;
+          return `<div class="insight-item"><span class="badge red">${days}d</span><span><b>${r.Projects||'–'}</b> — ${r.Holder||'–'} — due ${fmtDate(due)}</span></div>`;
+        }).join('') : '<div class="insight-item"><span class="badge green">✓</span><span>No overdue projects</span></div>'}
+      </div>
+    </div>
+    <div class="insight-card">
+      <h3>📧 Pending Mail Follow-ups (${pendingMails.length})</h3>
+      <div class="insight-list">
+        ${pendingMails.length ? pendingMails.map(r => `
+          <div class="insight-item"><span class="badge yellow">Mail</span><span><b>${r.Projects||'–'}</b> — ${r.Holder||'–'}</span></div>
+        `).join('') : '<div class="insight-item"><span class="badge green">✓</span><span>All mails sent</span></div>'}
+      </div>
+    </div>
+    <div class="insight-card">
+      <h3>⚠️ Delay Risk (Due ≤7 days)</h3>
+      <div class="insight-list">
+        ${soonDue.length ? soonDue.map(r => {
+          const due = parseDate(r['Due date']);
+          const days = due ? daysDiff(now,due) : 0;
+          return `<div class="insight-item"><span class="badge yellow">${days}d</span><span><b>${r.Projects||'–'}</b> — ${r.Holder||'–'}</span></div>`;
+        }).join('') : '<div class="insight-item"><span class="badge green">✓</span><span>No immediate delay risks</span></div>'}
+      </div>
+    </div>
+    <div class="insight-card">
+      <h3>⚖️ Workload Balance</h3>
+      <div class="insight-list">
+        ${Object.entries(hStats).sort((a,b)=>b[1].t-a[1].t).map(([h,s]) => {
+          const pct = s.t ? Math.round(s.c/s.t*100) : 0;
+          const badgeClass = pct>=70?'green':pct>=40?'yellow':'red';
+          return `<div class="insight-item"><span class="badge ${badgeClass}">${pct}%</span><span><b>${h}</b>: ${s.c} done / ${s.t} total</span></div>`;
+        }).join('') || '<div class="insight-item"><span class="badge gray">–</span><span>No data</span></div>'}
+      </div>
+    </div>
+    <div class="insight-card">
+      <h3>📊 Quick Stats Summary</h3>
+      <div class="insight-list">
+        <div class="insight-item"><span class="badge blue">SLA</span><span>Projects completed on time: <b>${d.filter(r=>{ const due=parseDate(r['Due date']),fin=parseDate(r['Final Date']); return fin&&due&&fin<=due; }).length}</b></span></div>
+        <div class="insight-item"><span class="badge yellow">Late</span><span>Late completions: <b>${d.filter(r=>{ const due=parseDate(r['Due date']),fin=parseDate(r['Final Date']); return fin&&due&&fin>due; }).length}</b></span></div>
+        <div class="insight-item"><span class="badge purple">Rate</span><span>Overall completion rate: <b>${d.length?Math.round(d.filter(r=>(r.Status||'').toLowerCase().includes('complet')).length/d.length*100):0}%</b></span></div>
+        <div class="insight-item"><span class="badge green">Month</span><span>Active this month: <b>${d.filter(r=>{ const due=parseDate(r['Due date']); return due&&due.getMonth()===new Date().getMonth(); }).length}</b> due</span></div>
+      </div>
+    </div>
+  `;
+}
+
+// ─── TABLE ───────────────────────────────────────────────────────────────────
+document.getElementById('tableSearch').addEventListener('input', e => { tableSearchText = e.target.value.toLowerCase(); currentPage = 1; renderTable(); });
+
+function sortTable(col) {
+  if (tableSortCol === col) tableSortDir = tableSortDir==='asc'?'desc':'asc';
+  else { tableSortCol = col; tableSortDir = 'asc'; }
+  document.querySelectorAll('th').forEach(t => t.classList.remove('sort-asc','sort-desc'));
+  const thId = 'th-' + col.replace(/\s/g,'');
+  const th = document.getElementById(thId);
+  if (th) th.classList.add('sort-'+tableSortDir);
+  renderTable();
+}
+
+function renderTable() {
+  const now = new Date();
+  let data = [...filteredData];
+  if (tableSearchText) {
+    data = data.filter(r => Object.values(r).join(' ').toLowerCase().includes(tableSearchText));
+  }
+  if (tableSortCol) {
+    data.sort((a,b) => {
+      let av = (a[tableSortCol]||''), bv = (b[tableSortCol]||'');
+      const ad = parseDate(av), bd = parseDate(bv);
+      if (ad && bd) { return tableSortDir==='asc' ? ad-bd : bd-ad; }
+      return tableSortDir==='asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    });
+  }
+
+  const perPage = parseInt(document.getElementById('perPage').value);
+  const total = data.length;
+  const pages = Math.ceil(total / perPage);
+  currentPage = Math.max(1, Math.min(currentPage, pages||1));
+  const slice = data.slice((currentPage-1)*perPage, currentPage*perPage);
+
+  const statusBadge = s => {
+    const sl = (s||'').toLowerCase();
+    if (sl.includes('complet')) return `<span class="badge green">✓ ${s}</span>`;
+    if (sl.includes('pending')) return `<span class="badge yellow">⏳ ${s}</span>`;
+    if (sl.includes('hold')) return `<span class="badge gray">⏸ ${s}</span>`;
+    return `<span class="badge blue">▶ ${s}</span>`;
+  };
+  const mailBadge = m => {
+    const ml = (m||'').toLowerCase();
+    if (ml.includes('not')) return `<span class="badge red">✗ ${m}</span>`;
+    if (ml.includes('sent')) return `<span class="badge purple">✓ ${m}</span>`;
+    return `<span class="badge gray">${m||'–'}</span>`;
+  };
+  const slaBadge = r => {
+    const due = parseDate(r['Due date']), fin = parseDate(r['Final Date']);
+    const isComp = (r.Status||'').toLowerCase().includes('complet');
+    if (isComp && due && fin) {
+      const diff = daysDiff(due, fin);
+      if (diff <= 0) return `<span class="badge green">On Time</span>`;
+      return `<span class="badge yellow">+${diff}d late</span>`;
+    }
+    if (!isComp && due && due < now) {
+      const d = Math.abs(daysDiff(due, now));
+      return `<span class="badge red">🚨 ${d}d overdue</span>`;
+    }
+    return `<span class="badge gray">–</span>`;
+  };
+
+  document.getElementById('tableBody').innerHTML = slice.map(r => {
+    const due = parseDate(r['Due date']), fin = parseDate(r['Final Date']);
+    const isOverdue = due && due < now && !(r.Status||'').toLowerCase().includes('complet');
+    return `<tr class="${isOverdue?'overdue':''}">
+      <td>${r.Task||'–'}</td>
+      <td>${statusBadge(r.Status)}</td>
+      <td><b>${r.Projects||'–'}</b></td>
+      <td>${mailBadge(r['Final Mail'])}</td>
+      <td>${fmtDate(due)}</td>
+      <td>${fin ? fmtDate(fin) : '<span style="color:var(--text-muted)">–</span>'}</td>
+      <td>${r.Holder||'–'}</td>
+      <td>${slaBadge(r)}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="8"><div class="empty-state"><div class="icon">🔍</div><div>No matching records</div></div></td></tr>`;
+
+  document.getElementById('paginationInfo').textContent = total ? `Showing ${(currentPage-1)*perPage+1}–${Math.min(currentPage*perPage,total)} of ${total} records` : 'No records';
+
+  const btns = document.getElementById('paginationBtns');
+  btns.innerHTML = '';
+  const addBtn = (label, page, disabled=false, active=false) => {
+    const b = document.createElement('button');
+    b.className = 'pg-btn' + (active?' active':'');
+    b.textContent = label;
+    b.disabled = disabled;
+    b.onclick = () => { currentPage = page; renderTable(); };
+    btns.appendChild(b);
+  };
+  addBtn('«', 1, currentPage===1);
+  addBtn('‹', currentPage-1, currentPage===1);
+  const start = Math.max(1, currentPage-2), end = Math.min(pages, start+4);
+  for (let p = start; p <= end; p++) addBtn(p, p, false, p===currentPage);
+  addBtn('›', currentPage+1, currentPage===pages||!pages);
+  addBtn('»', pages, currentPage===pages||!pages);
+}
+
+// ─── EXPORT CSV ──────────────────────────────────────────────────────────────
+function exportCSV() {
+  const headers = ['Task','Status','Projects','Final Mail','Due date','Final Date','Holder'];
+  const rows = [headers, ...filteredData.map(r => headers.map(h => `"${(r[h]||'').replace(/"/g,'""')}"`) )];
+  const blob = new Blob([rows.map(r=>r.join(',')).join('\n')], { type:'text/csv' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'projects_export.csv'; a.click();
+}
+
+// ─── PDF ─────────────────────────────────────────────────────────────────────
+async function exportPDF() {
+  const btn = document.querySelector('.pdf-btn');
+  btn.innerHTML = '<span class="spin">⟳</span> Generating…';
+  btn.disabled = true;
+  try {
+    const canvas = await html2canvas(document.body, { scale:1.2, useCORS:true, logging:false });
+    const imgData = canvas.toDataURL('image/jpeg', 0.85);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+    const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
+    const ratio = canvas.height / canvas.width;
+    const pageH = pw * ratio;
+    let y = 0;
+    while (y < canvas.height) {
+      if (y > 0) pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, -(y/canvas.height)*pageH*Math.ceil(canvas.height/pageH), pw, pageH*Math.ceil(canvas.height/pageH));
+      y += canvas.width * (ph/pw);
+    }
+    pdf.save('dashboard.pdf');
+  } finally {
+    btn.innerHTML = '📄 PDF';
+    btn.disabled = false;
+  }
+}
+
+// ─── DARK MODE ───────────────────────────────────────────────────────────────
+function toggleDark() {
+  const isDk = document.documentElement.getAttribute('data-theme') === 'dark';
+  document.documentElement.setAttribute('data-theme', isDk ? 'light' : 'dark');
+  document.getElementById('darkBtn').textContent = isDk ? '🌙 Dark' : '☀️ Light';
+  renderCharts();
+}
+
+// ─── AUTO REFRESH ────────────────────────────────────────────────────────────
+setInterval(loadData, REFRESH_INTERVAL);
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+loadData();
+</script>
+</body>
+</html>
