@@ -628,7 +628,13 @@
 
 <script>
 // ─── CONFIG ─────────────────────────────────────────────────────────────────
-const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSLi5GEMHB0KnsT4TiykhxMZLwJ0DWYkQa-QkB5kIqtpfqJ1FbhEw5g8hTvkTUR-QL6DHh6QBVRjndD/pub?gid=0&single=true&output=csv';
+const SHEET_ID   = '1bgfxWMr9itncbLc0Ci1lSpzDPM4b2MaHFMnOA0m2F1w';
+const SHEET_NAME = 'Projects';
+const SHEET_CSV  = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSLi5GEMHB0KnsT4TiykhxMZLwJ0DWYkQa-QkB5kIqtpfqJ1FbhEw5g8hTvkTUR-QL6DHh6QBVRjndD/pub?gid=0&single=true&output=csv';
+// gviz/tq endpoint – no CORS issues for public sheets
+const GVIZ_URL   = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+// CORS proxy fallback
+const PROXY_URL  = 'https://api.allorigins.win/raw?url=';
 const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 min
 
 // ─── STATE ───────────────────────────────────────────────────────────────────
@@ -686,27 +692,75 @@ function daysDiff(a, b) {
   return Math.round((b - a) / 86400000);
 }
 
+// ─── GVIZ PARSER ─────────────────────────────────────────────────────────────
+function parseGviz(text) {
+  // Strip the JSONP wrapper: /*O_o*/\ngoogle.visualization.Query.setResponse({...});
+  const json = text.replace(/^[^{]*/, '').replace(/\);?\s*$/, '');
+  const obj = JSON.parse(json);
+  const cols = obj.table.cols.map(c => c.label || c.id);
+  return obj.table.rows.map(row => {
+    const rec = {};
+    cols.forEach((col, i) => {
+      const cell = row.c[i];
+      rec[col] = cell ? (cell.f || (cell.v !== null && cell.v !== undefined ? String(cell.v) : '')) : '';
+    });
+    return rec;
+  }).filter(r => Object.values(r).some(v => v));
+}
+
 // ─── LOAD DATA ───────────────────────────────────────────────────────────────
 async function loadData() {
   document.getElementById('loadingOverlay').style.display = 'flex';
   document.getElementById('errorBanner').style.display = 'none';
+
+  // Strategy 1: gviz/tq JSON (CORS-friendly, works on any domain)
   try {
-    const resp = await fetch(SHEET_CSV + '&t=' + Date.now());
+    const resp = await fetch(GVIZ_URL + '&t=' + Date.now());
     const text = await resp.text();
-    if (text.includes('<!DOCTYPE') || text.includes('<html')) throw new Error('Sheet returned HTML – check publish settings');
-    allData = parseCSV(text);
-    if (!allData.length) throw new Error('No data rows found in sheet');
+    if (!text.includes('setResponse')) throw new Error('Unexpected gviz response');
+    allData = parseGviz(text);
+    if (!allData.length) throw new Error('Empty gviz response');
     populateFilters();
     applyFilters();
     document.getElementById('lastUpdated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
-  } catch (e) {
-    const eb = document.getElementById('errorBanner');
-    eb.style.display = 'block';
-    eb.textContent = '⚠ ' + e.message + ' — Showing sample data instead.';
-    allData = generateSampleData();
+    document.getElementById('loadingOverlay').style.display = 'none';
+    return;
+  } catch (e1) {
+    console.warn('gviz fetch failed:', e1.message);
+  }
+
+  // Strategy 2: CORS proxy for CSV
+  try {
+    const proxyResp = await fetch(PROXY_URL + encodeURIComponent(SHEET_CSV + '&t=' + Date.now()));
+    const text = await proxyResp.text();
+    if (text.includes('<!DOCTYPE') || text.includes('<html')) throw new Error('Proxy returned HTML');
+    allData = parseCSV(text);
+    if (!allData.length) throw new Error('Empty proxy CSV');
     populateFilters();
     applyFilters();
-    document.getElementById('lastUpdated').textContent = 'Updated: ' + new Date().toLocaleTimeString() + ' (sample)';
+    document.getElementById('lastUpdated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+    document.getElementById('loadingOverlay').style.display = 'none';
+    return;
+  } catch (e2) {
+    console.warn('proxy fetch failed:', e2.message);
+  }
+
+  // Strategy 3: Direct CSV (works on localhost, may fail on deployed domains)
+  try {
+    const resp = await fetch(SHEET_CSV + '&t=' + Date.now());
+    const text = await resp.text();
+    if (text.includes('<!DOCTYPE') || text.includes('<html')) throw new Error('Sheet returned HTML');
+    allData = parseCSV(text);
+    if (!allData.length) throw new Error('No data rows found');
+    populateFilters();
+    applyFilters();
+    document.getElementById('lastUpdated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+  } catch (e3) {
+    // All strategies failed — show error but NO sample data fallback
+    const eb = document.getElementById('errorBanner');
+    eb.style.display = 'block';
+    eb.textContent = '⚠️ Could not load sheet data. Make sure the sheet is published (File → Share → Publish to web → CSV). Retrying in 30s…';
+    setTimeout(loadData, 30000);
   } finally {
     document.getElementById('loadingOverlay').style.display = 'none';
   }
